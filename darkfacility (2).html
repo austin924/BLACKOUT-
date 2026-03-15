@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BLACKOUT — Sector 7 Research Facility</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Creepster&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; overflow: hidden; font-family: 'Share Tech Mono', monospace; }
+  #c { display: block; width: 100vw; height: 100vh; }
+
+  #ui {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 10;
+  }
+
+  #crosshair {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 16px; height: 16px;
+  }
+  #crosshair::before, #crosshair::after {
+    content: ''; position: absolute; background: rgba(255,100,0,0.8);
+  }
+  #crosshair::before { width: 2px; height: 100%; left: 50%; transform: translateX(-50%); }
+  #crosshair::after { width: 100%; height: 2px; top: 50%; transform: translateY(-50%); }
+
+  #hud {
+    position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 30px; align-items: center;
+  }
+
+  .gen-icon {
+    width: 30px; height: 30px; border: 2px solid #444;
+    border-radius: 4px; background: #111;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; transition: all 0.3s;
+  }
+  .gen-icon.active { border-color: #ff6600; background: #331800; box-shadow: 0 0 10px #ff6600; }
+  .gen-icon.done { border-color: #00ff88; background: #003322; box-shadow: 0 0 10px #00ff88; }
+
+  #stamina-bar {
+    width: 150px; height: 8px; background: #222; border: 1px solid #444; border-radius: 4px; overflow: hidden;
+  }
+  #stamina-fill {
+    height: 100%; background: linear-gradient(90deg, #ff4400, #ffaa00);
+    transition: width 0.1s; border-radius: 4px;
+  }
+  #stamina-label { color: #888; font-size: 10px; text-transform: uppercase; letter-spacing: 2px; }
+
+  #heartbeat {
+    font-size: 22px; color: #ff2200;
+    animation: pulse 1s infinite;
+    filter: drop-shadow(0 0 6px #ff0000);
+  }
+  @keyframes pulse {
+    0%,100% { transform: scale(1); opacity: 0.7; }
+    50% { transform: scale(1.3); opacity: 1; }
+  }
+
+  #top-bar {
+    position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+    color: #cc4400; font-size: 11px; letter-spacing: 3px;
+    text-transform: uppercase; text-shadow: 0 0 10px #ff4400;
+  }
+
+  #message {
+    position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%);
+    color: #ffaa00; font-size: 14px; letter-spacing: 2px;
+    text-shadow: 0 0 10px #ff6600; opacity: 0; transition: opacity 0.5s;
+    text-align: center; max-width: 400px;
+  }
+
+  #sanity-overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.7) 100%);
+    pointer-events: none;
+    transition: opacity 0.5s;
+  }
+
+  #blood-overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: radial-gradient(ellipse at center, transparent 60%, rgba(180,0,0,0.4) 100%);
+    opacity: 0; transition: opacity 0.3s; pointer-events: none;
+  }
+
+  #noise-overlay {
+    position: absolute; top:0; left:0; width:100%; height:100%;
+    opacity: 0; pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+    mix-blend-mode: overlay;
+  }
+
+  /* TITLE SCREEN */
+  #title-screen {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: #000; z-index: 100;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 20px;
+  }
+  #title-screen h1 {
+    font-family: 'Creepster', cursive;
+    font-size: clamp(48px, 10vw, 100px);
+    color: #cc2200;
+    text-shadow: 0 0 30px #ff0000, 0 0 60px #660000;
+    letter-spacing: 10px;
+    animation: flicker 3s infinite;
+  }
+  @keyframes flicker {
+    0%,100% { opacity: 1; }
+    92% { opacity: 1; }
+    93% { opacity: 0.3; }
+    94% { opacity: 1; }
+    96% { opacity: 0.1; }
+    97% { opacity: 1; }
+  }
+  #title-screen .subtitle {
+    color: #884422; font-size: 13px; letter-spacing: 6px;
+    text-transform: uppercase; margin-top: -10px;
+  }
+  #title-screen .story {
+    color: #666; font-size: 13px; line-height: 1.8;
+    max-width: 500px; text-align: center; margin: 20px 0;
+    border: 1px solid #222; padding: 20px;
+    background: rgba(20,5,0,0.8);
+  }
+  #title-screen .story .red { color: #cc4400; }
+  #start-btn {
+    background: none; border: 2px solid #cc4400;
+    color: #ff6600; font-family: 'Share Tech Mono', monospace;
+    font-size: 14px; letter-spacing: 4px; padding: 14px 40px;
+    cursor: pointer; pointer-events: all;
+    text-transform: uppercase; transition: all 0.3s;
+  }
+  #start-btn:hover { background: #1a0800; box-shadow: 0 0 20px #ff4400; color: #ff8800; }
+  .controls-hint {
+    color: #444; font-size: 11px; letter-spacing: 2px; text-align: center; line-height: 2;
+  }
+
+  /* GAME OVER */
+  #gameover-screen {
+    position: fixed; top:0; left:0; width:100%; height:100%;
+    background: rgba(0,0,0,0.95); z-index: 200;
+    display: none; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+  }
+  #gameover-screen h2 {
+    font-family: 'Creepster', cursive; font-size: 80px;
+    color: #cc0000; text-shadow: 0 0 40px #ff0000;
+    animation: flicker 2s infinite;
+  }
+  #gameover-screen p { color: #664422; font-size: 13px; letter-spacing: 3px; }
+  #restart-btn {
+    background: none; border: 2px solid #880000; color: #cc4400;
+    font-family: 'Share Tech Mono', monospace; font-size: 13px;
+    letter-spacing: 3px; padding: 12px 30px; cursor: pointer; pointer-events: all;
+    transition: all 0.3s;
+  }
+  #restart-btn:hover { background: #110000; box-shadow: 0 0 15px #880000; }
+
+  /* WIN SCREEN */
+  #win-screen {
+    position: fixed; top:0; left:0; width:100%; height:100%;
+    background: rgba(0,0,0,0.95); z-index: 200;
+    display: none; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+  }
+  #win-screen h2 {
+    font-family: 'Creepster', cursive; font-size: 70px;
+    color: #00ff88; text-shadow: 0 0 40px #00cc66;
+  }
+  #win-screen p { color: #44aa66; font-size: 13px; letter-spacing: 3px; text-align: center; line-height: 2; }
+
+  #gen-label { color: #666; font-size: 10px; letter-spacing: 2px; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="ui">
+  <div id="sanity-overlay"></div>
+  <div id="blood-overlay"></div>
+  <div id="noise-overlay"></div>
+  <div id="crosshair"></div>
+
+  <div id="top-bar">⚠ SECTOR 7 — EMERGENCY BLACKOUT — ALL SYSTEMS OFFLINE ⚠</div>
+
+  <div id="hud">
+    <span id="heartbeat">♥</span>
+    <div>
+      <div id="stamina-label">Stamina</div>
+      <div id="stamina-bar"><div id="stamina-fill" style="width:100%"></div></div>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+      <div id="gen-label">Generators</div>
+      <div style="display:flex;gap:6px">
+        <div class="gen-icon" id="g0">⚡</div>
+        <div class="gen-icon" id="g1">⚡</div>
+        <div class="gen-icon" id="g2">⚡</div>
+        <div class="gen-icon" id="g3">⚡</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="message"></div>
+</div>
+
+<!-- TITLE SCREEN -->
+<div id="title-screen">
+  <h1>BLACKOUT</h1>
+  <div class="subtitle">Sector 7 Research Facility</div>
+  <div class="story">
+    <span class="red">2:47 AM.</span> You're the night-shift maintenance worker at Sector 7 — a classified research facility.<br><br>
+    The power dies without warning. In the darkness, you hear something move.<br><br>
+    <span class="red">They were never supposed to get out.</span><br><br>
+    Find the 4 emergency generators. Restore power. Get out alive.
+  </div>
+  <button id="start-btn" onclick="startGame()">ENTER FACILITY</button>
+  <div class="controls-hint">
+    WASD — Move &nbsp;|&nbsp; Mouse — Look &nbsp;|&nbsp; SHIFT — Sprint &nbsp;|&nbsp; E — Interact<br>
+    Click to lock mouse pointer
+  </div>
+</div>
+
+<!-- GAME OVER -->
+<div id="gameover-screen">
+  <h2>YOU DIED</h2>
+  <p>It found you in the dark.</p>
+  <button id="restart-btn" onclick="location.reload()">TRY AGAIN</button>
+</div>
+
+<!-- WIN SCREEN -->
+<div id="win-screen">
+  <h2>POWER RESTORED</h2>
+  <p>The lights flood back on.<br>You survived Sector 7.<br><br><span style="color:#228844">But something is still watching.</span></p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// =====================================================================
+// BLACKOUT — 3D Horror Game
+// =====================================================================
+
+let scene, camera, renderer, clock;
+let player = { speed: 0.07, sprintSpeed: 0.15, stamina: 100, health: 100 };
+let keys = {};
+let yaw = 0, pitch = 0;
+let isPointerLocked = false;
+let gameActive = false;
+let generatorsActivated = 0;
+const TOTAL_GENERATORS = 4;
+let generators = [];
+let entities = [];
+let walls = [];
+let lights = [];
+let flashlight;
+let ambientLight;
+let sanity = 100;
+let heartbeatInterval;
+let messageTimeout;
+let frameCount = 0;
+let canInteract = false;
+let nearbyGenerator = null;
+let gameOverTriggered = false;
+let winTriggered = false;
+let doorOpen = [false, false, false];
+let flickerTimers = [];
+
+// Audio context for horror sounds
+let audioCtx;
+
+function createAudio() {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function playTone(freq, type, dur, vol, startTime) {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime + (startTime || 0);
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.type = type || 'sine';
+  osc.frequency.setValueAtTime(freq, t);
+  osc.frequency.exponentialRampToValueAtTime(freq * 0.3, t + dur);
+  gain.gain.setValueAtTime(vol || 0.1, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  osc.start(t); osc.stop(t + dur);
+}
+
+function playHeartbeat() {
+  if (!audioCtx) return;
+  playTone(80, 'sine', 0.1, 0.3);
+  setTimeout(() => playTone(60, 'sine', 0.15, 0.2), 120);
+}
+
+function playGeneratorSound() {
+  if (!audioCtx) return;
+  for (let i = 0; i < 6; i++) {
+    setTimeout(() => playTone(100 + Math.random() * 200, 'sawtooth', 0.2, 0.15), i * 80);
+  }
+  setTimeout(() => playTone(150, 'sine', 1.0, 0.3), 500);
+}
+
+function playScreamSound() {
+  if (!audioCtx) return;
+  for (let i = 0; i < 20; i++) {
+    setTimeout(() => {
+      playTone(300 + Math.random() * 800, 'sawtooth', 0.3, 0.25 + Math.random() * 0.2);
+    }, i * 40);
+  }
+}
+
+function playAmbientDrone() {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.type = 'sawtooth';
+  osc.frequency.value = 55;
+  gain.gain.value = 0.04;
+  osc.start();
+  setTimeout(() => { gain.gain.setValueAtTime(0.04, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 3); setTimeout(() => osc.stop(), 3000); }, 8000);
+}
+
+// =====================================================================
+// FACILITY LAYOUT
+// =====================================================================
+const ROOM_SIZE = 20;
+const WALL_H = 5;
+
+// Room definitions: [x, z, width, depth]
+const rooms = [
+  // Main hallway
+  { x: 0, z: 0, w: 8, d: 40, name: "Main Corridor" },
+  // Left wing
+  { x: -15, z: -10, w: 20, d: 15, name: "Lab A" },
+  // Right wing
+  { x: 15, z: -5, w: 18, d: 12, name: "Control Room" },
+  // Generator room 1
+  { x: -20, z: 10, w: 12, d: 10, name: "Generator Bay 1" },
+  // Generator room 2
+  { x: 20, z: 15, w: 12, d: 10, name: "Generator Bay 2" },
+  // Back corridor
+  { x: 0, z: 18, w: 8, d: 12, name: "Back Corridor" },
+  // Generator room 3
+  { x: -10, z: 25, w: 14, d: 10, name: "Generator Bay 3" },
+  // Generator room 4
+  { x: 10, z: 28, w: 14, d: 10, name: "Generator Bay 4" },
+  // Storage
+  { x: -18, z: -20, w: 12, d: 8, name: "Storage" },
+];
+
+function buildRoom(room) {
+  const mat = new THREE.MeshLambertMaterial({ color: 0x3a3a44 });
+  const floorMat = new THREE.MeshLambertMaterial({ color: 0x252530 });
+  const ceilMat = new THREE.MeshLambertMaterial({ color: 0x1e1e28 });
+
+  // Floor
+  const floor = new THREE.Mesh(
+    new THREE.BoxGeometry(room.w, 0.2, room.d),
+    floorMat
+  );
+  floor.position.set(room.x, -0.1, room.z);
+  scene.add(floor);
+
+  // Ceiling
+  const ceil = new THREE.Mesh(
+    new THREE.BoxGeometry(room.w, 0.2, room.d),
+    ceilMat
+  );
+  ceil.position.set(room.x, WALL_H, room.z);
+  scene.add(ceil);
+
+  // Walls - N S E W
+  const wThick = 0.3;
+  [[0, 0, room.w, wThick, -room.d/2],  // North
+   [0, 0, room.w, wThick, room.d/2],   // South
+   [-room.w/2, 0, wThick, room.d, 0],  // West
+   [room.w/2, 0, wThick, room.d, 0]    // East
+  ].forEach(([ox, oy, ww, wd, oz]) => {
+    const wall = new THREE.Mesh(
+      new THREE.BoxGeometry(ww, WALL_H, wd),
+      mat
+    );
+    wall.position.set(room.x + ox, WALL_H/2, room.z + oz);
+    scene.add(wall);
+    walls.push(wall);
+  });
+}
+
+// =====================================================================
+// ENTITIES — THE HORRORS
+// =====================================================================
+
+function createEntity(x, z, type) {
+  const group = new THREE.Group();
+
+  if (type === 'stalker') {
+    // The Stalker — tall, thin, wrong proportions
+    // Body
+    const bodyGeo = new THREE.BoxGeometry(0.4, 2.5, 0.25);
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x0a0a0a });
+    const body = new THREE.Mesh(bodyGeo, bodyMat);
+    body.position.y = 1.5;
+    group.add(body);
+
+    // Head — too large, wrong
+    const headGeo = new THREE.SphereGeometry(0.5, 8, 8);
+    const headMat = new THREE.MeshLambertMaterial({ color: 0x0d0008 });
+    const head = new THREE.Mesh(headGeo, headMat);
+    head.position.y = 3.2;
+    head.scale.set(1, 1.3, 0.8); // stretched
+    group.add(head);
+
+    // Eyes — glowing red slits
+    const eyeGeo = new THREE.BoxGeometry(0.18, 0.04, 0.05);
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+    [-0.15, 0.15].forEach(ex => {
+      const eye = new THREE.Mesh(eyeGeo, eyeMat);
+      eye.position.set(ex, 3.25, 0.42);
+      group.add(eye);
+      // Eye glow
+      const glow = new THREE.PointLight(0xff0000, 1.5, 2);
+      glow.position.copy(eye.position);
+      group.add(glow);
+    });
+
+    // Long arms — unnatural length
+    [-0.35, 0.35].forEach((ax, i) => {
+      const armGeo = new THREE.BoxGeometry(0.12, 1.8, 0.12);
+      const arm = new THREE.Mesh(armGeo, bodyMat);
+      arm.position.set(ax * 1.5, 0.8, 0);
+      arm.rotation.z = ax > 0 ? -0.3 : 0.3;
+      group.add(arm);
+      // Fingers — long, too many
+      for (let f = 0; f < 4; f++) {
+        const fGeo = new THREE.BoxGeometry(0.04, 0.5, 0.04);
+        const finger = new THREE.Mesh(fGeo, bodyMat);
+        finger.position.set(ax * 1.8 + (f-1.5)*0.07, -0.2 + Math.random()*0.1, 0);
+        group.add(finger);
+      }
+    });
+
+    // Legs — too long
+    [-0.12, 0.12].forEach(lx => {
+      const legGeo = new THREE.BoxGeometry(0.18, 1.4, 0.18);
+      const leg = new THREE.Mesh(legGeo, bodyMat);
+      leg.position.set(lx, 0, 0);
+      group.add(leg);
+    });
+
+    group.userData = {
+      type: 'stalker',
+      speed: 0.025 + Math.random() * 0.01,
+      detected: false,
+      chaseSpeed: 0.025,
+      attackDist: 1.2,
+      detectDist: 12,
+      patrolAngle: Math.random() * Math.PI * 2,
+      patrolRadius: 5 + Math.random() * 3,
+      originX: x, originZ: z,
+      animTime: 0,
+      screamPlayed: false,
+      lastPos: new THREE.Vector3(x, 0, z)
+    };
+
+  } else if (type === 'crawler') {
+    // The Crawler — moves on all fours, flat body, too many legs
+    const bodyGeo = new THREE.BoxGeometry(0.8, 0.25, 1.2);
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x050010 });
+    const body = new THREE.Mesh(bodyGeo, bodyMat);
+    body.position.y = 0.4;
+    group.add(body);
+
+    // Head — flat, wide, wrong
+    const headGeo = new THREE.BoxGeometry(0.7, 0.2, 0.6);
+    const headMat = new THREE.MeshLambertMaterial({ color: 0x08000f });
+    const head = new THREE.Mesh(headGeo, headMat);
+    head.position.set(0, 0.4, -0.8);
+    group.add(head);
+
+    // Many eyes — rows of them
+    const eyeGeo = new THREE.SphereGeometry(0.05, 4, 4);
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+    for (let r = 0; r < 2; r++) {
+      for (let c = 0; c < 4; c++) {
+        const eye = new THREE.Mesh(eyeGeo, eyeMat);
+        eye.position.set((c-1.5)*0.15, 0.5, -1.08 + r*0.1);
+        group.add(eye);
+      }
+    }
+
+    // Yellow eye glow
+    const glow = new THREE.PointLight(0xaaaa00, 1, 2);
+    glow.position.set(0, 0.5, -1.1);
+    group.add(glow);
+
+    // Legs — 6 of them, jointed
+    for (let l = 0; l < 6; l++) {
+      const side = l < 3 ? -1 : 1;
+      const lz = (l % 3 - 1) * 0.4;
+      const legGeo = new THREE.BoxGeometry(0.06, 0.35, 0.06);
+      const leg = new THREE.Mesh(legGeo, bodyMat);
+      leg.position.set(side * 0.6, 0.2, lz);
+      leg.rotation.z = side * 0.8;
+      group.add(leg);
+    }
+
+    group.userData = {
+      type: 'crawler',
+      speed: 0.015,
+      chaseSpeed: 0.028,
+      attackDist: 1.0,
+      detectDist: 8,
+      detected: false,
+      patrolAngle: Math.random() * Math.PI * 2,
+      patrolRadius: 4,
+      originX: x, originZ: z,
+      animTime: 0,
+      screamPlayed: false,
+      lastPos: new THREE.Vector3(x, 0, z)
+    };
+
+  } else if (type === 'watcher') {
+    // The Watcher — floats, no legs, just a mass of eyes
+    const bodyGeo = new THREE.SphereGeometry(0.6, 8, 6);
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x020005 });
+    const body = new THREE.Mesh(bodyGeo, bodyMat);
+    body.position.y = 2.5;
+    body.scale.set(1, 0.7, 0.9);
+    group.add(body);
+
+    // Mass of eyes
+    const eyePositions = [];
+    for (let i = 0; i < 18; i++) {
+      const phi = Math.acos(2 * Math.random() - 1);
+      const theta = Math.random() * Math.PI * 2;
+      const r = 0.58;
+      const ex = r * Math.sin(phi) * Math.cos(theta);
+      const ey = r * Math.cos(phi) * 0.7;
+      const ez = r * Math.sin(phi) * Math.sin(theta);
+      eyePositions.push([ex, ey + 2.5, ez]);
+
+      const eGeo = new THREE.SphereGeometry(0.08, 6, 6);
+      const col = Math.random() > 0.5 ? 0xff3300 : 0xffaa00;
+      const eMat = new THREE.MeshBasicMaterial({ color: col });
+      const eye = new THREE.Mesh(eGeo, eMat);
+      eye.position.set(ex, ey + 2.5, ez);
+      group.add(eye);
+    }
+
+    // Pulsing glow
+    const glow = new THREE.PointLight(0x440022, 2, 4);
+    glow.position.set(0, 2.5, 0);
+    group.add(glow);
+    group.userData.glowRef = glow;
+
+    // Tendrils
+    for (let t = 0; t < 5; t++) {
+      const tGeo = new THREE.BoxGeometry(0.06, 1.5, 0.06);
+      const tMat = new THREE.MeshLambertMaterial({ color: 0x05000a });
+      const tendril = new THREE.Mesh(tGeo, tMat);
+      tendril.position.set(
+        (Math.random()-0.5)*0.8,
+        1.5,
+        (Math.random()-0.5)*0.8
+      );
+      tendril.rotation.z = (Math.random()-0.5)*0.5;
+      tendril.rotation.x = (Math.random()-0.5)*0.3;
+      group.add(tendril);
+    }
+
+    group.userData = {
+      type: 'watcher',
+      speed: 0.01,
+      chaseSpeed: 0.020,
+      attackDist: 1.5,
+      detectDist: 15,
+      detected: false,
+      floatTime: Math.random() * Math.PI * 2,
+      patrolAngle: Math.random() * Math.PI * 2,
+      patrolRadius: 6,
+      originX: x, originZ: z,
+      animTime: 0,
+      screamPlayed: false,
+      lastPos: new THREE.Vector3(x, 0, z)
+    };
+  }
+
+  group.position.set(x, 0, z);
+  scene.add(group);
+  entities.push(group);
+  return group;
+}
+
+// =====================================================================
+// GENERATOR OBJECT
+// =====================================================================
+function createGenerator(x, z, id) {
+  const group = new THREE.Group();
+
+  // Base
+  const baseGeo = new THREE.BoxGeometry(1.5, 1.2, 0.8);
+  const baseMat = new THREE.MeshLambertMaterial({ color: 0x222233 });
+  const base = new THREE.Mesh(baseGeo, baseMat);
+  base.position.y = 0.6;
+  group.add(base);
+
+  // Panel
+  const panelGeo = new THREE.BoxGeometry(1.3, 0.8, 0.1);
+  const panelMat = new THREE.MeshLambertMaterial({ color: 0x1a1a2a });
+  const panel = new THREE.Mesh(panelGeo, panelMat);
+  panel.position.set(0, 0.7, 0.4);
+  group.add(panel);
+
+  // Indicator light — red (offline)
+  const indGeo = new THREE.SphereGeometry(0.1, 8, 8);
+  const indMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+  const ind = new THREE.Mesh(indGeo, indMat);
+  ind.position.set(0, 1.0, 0.45);
+  group.add(ind);
+  group.userData.indicator = ind;
+  group.userData.indicatorMat = indMat;
+
+  // Glow (red = offline)
+  const light = new THREE.PointLight(0xff0000, 1.5, 4);
+  light.position.set(0, 1.2, 0);
+  group.add(light);
+  group.userData.pointLight = light;
+
+  // Vents
+  for (let v = 0; v < 4; v++) {
+    const vGeo = new THREE.BoxGeometry(1.2, 0.06, 0.05);
+    const vMat = new THREE.MeshLambertMaterial({ color: 0x111120 });
+    const vent = new THREE.Mesh(vGeo, vMat);
+    vent.position.set(0, 0.25 + v*0.12, 0.41);
+    group.add(vent);
+  }
+
+  group.position.set(x, 0, z);
+  group.userData.id = id;
+  group.userData.activated = false;
+  group.userData.interactRadius = 2.5;
+
+  scene.add(group);
+  generators.push(group);
+
+  // Interaction prompt marker
+  const markerGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.05, 8);
+  const markerMat = new THREE.MeshBasicMaterial({ color: 0xff6600, transparent: true, opacity: 0.6 });
+  const marker = new THREE.Mesh(markerGeo, markerMat);
+  marker.position.set(x, 0.01, z);
+  scene.add(marker);
+  group.userData.marker = marker;
+}
+
+// =====================================================================
+// PROP DECORATIONS
+// =====================================================================
+function createProps() {
+  // Barrels
+  const barrelPositions = [
+    [-3, -5], [3, -8], [-14, -8], [14, -3], [-8, 10], [8, 15], [0, 22]
+  ];
+  barrelPositions.forEach(([x, z]) => {
+    const geo = new THREE.CylinderGeometry(0.4, 0.4, 1.0, 10);
+    const mat = new THREE.MeshLambertMaterial({ color: 0x223322 });
+    const b = new THREE.Mesh(geo, mat);
+    b.position.set(x, 0.5, z);
+    scene.add(b);
+    walls.push(b); // treat as obstacle
+  });
+
+  // Crates
+  const cratePositions = [[-13, -15], [13, -10], [-5, 20], [5, 25]];
+  cratePositions.forEach(([x, z]) => {
+    const geo = new THREE.BoxGeometry(1.2, 1.2, 1.2);
+    const mat = new THREE.MeshLambertMaterial({ color: 0x3a2a10 });
+    const c = new THREE.Mesh(geo, mat);
+    c.position.set(x, 0.6, z);
+    scene.add(c);
+    walls.push(c);
+  });
+
+  // Pipes along ceiling
+  for (let i = 0; i < 8; i++) {
+    const geo = new THREE.CylinderGeometry(0.08, 0.08, 8, 6);
+    const mat = new THREE.MeshLambertMaterial({ color: 0x333344 });
+    const p = new THREE.Mesh(geo, mat);
+    p.rotation.z = Math.PI / 2;
+    p.position.set(-8 + i * 2, 4.5, -15 + Math.random() * 30);
+    scene.add(p);
+  }
+
+  // Emergency light fixtures (broken, sparking - just geometry)
+  const lightFixtures = [
+    [0, -15], [0, 0], [0, 15], [-15, -10], [15, -5], [-10, 25], [10, 28]
+  ];
+  lightFixtures.forEach(([x, z]) => {
+    const geo = new THREE.BoxGeometry(0.8, 0.15, 0.3);
+    const mat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+    const fix = new THREE.Mesh(geo, mat);
+    fix.position.set(x, WALL_H - 0.2, z);
+    scene.add(fix);
+  });
+
+  // Blood pools on floor (flat planes)
+  const bloodPos = [[-2, 5], [3, -12], [-14, -12], [1, 20]];
+  bloodPos.forEach(([x, z]) => {
+    const geo = new THREE.CircleGeometry(0.8 + Math.random() * 0.5, 12);
+    const mat = new THREE.MeshBasicMaterial({ color: 0x440000, transparent: true, opacity: 0.7 });
+    const blood = new THREE.Mesh(geo, mat);
+    blood.rotation.x = -Math.PI / 2;
+    blood.position.set(x, 0.02, z);
+    scene.add(blood);
+  });
+
+  // Flickering ceiling lights (actual lights)
+  [[0,-10], [0,5], [-15,-10], [15,-3]].forEach(([x,z]) => {
+    const light = new THREE.PointLight(0x8899aa, 1.2, 15);
+    light.position.set(x, WALL_H - 0.3, z);
+    scene.add(light);
+    lights.push(light);
+    flickerTimers.push({ light, time: Math.random() * 100, rate: 2 + Math.random() * 3 });
+  });
+}
+
+// =====================================================================
+// FLASHLIGHT — player's only real light source
+// =====================================================================
+function createFlashlight() {
+  flashlight = new THREE.SpotLight(0xfff5e0, 20, 30, Math.PI / 7, 0.2, 1.0);
+  flashlight.position.set(0, 0, 0);
+  scene.add(flashlight);
+  scene.add(flashlight.target);
+}
+
+// =====================================================================
+// SCENE SETUP
+// =====================================================================
+function initScene() {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x000000);
+  scene.fog = new THREE.FogExp2(0x050508, 0.04);
+
+  clock = new THREE.Clock();
+
+  camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, 0.1, 100);
+  camera.position.set(0, 1.7, 30);
+
+  renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: false });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.BasicShadowMap;
+
+  ambientLight = new THREE.AmbientLight(0x8899cc, 0.8);
+  scene.add(ambientLight);
+
+  // Build rooms
+  rooms.forEach(buildRoom);
+
+  // Create generators in their rooms
+  createGenerator(-20, 10, 0);
+  createGenerator(20, 15, 1);
+  createGenerator(-10, 25, 2);
+  createGenerator(10, 28, 3);
+
+  // Create props
+  createProps();
+
+  // Create flashlight
+  createFlashlight();
+
+  // Spawn entities
+  createEntity(-14, -8, 'stalker');
+  createEntity(14, -3, 'stalker');
+  createEntity(0, 0, 'crawler');
+  createEntity(-8, 12, 'crawler');
+  createEntity(10, 20, 'watcher');
+  createEntity(-3, -18, 'watcher');
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+}
+
+// =====================================================================
+// PLAYER CONTROLLER
+// =====================================================================
+document.addEventListener('keydown', e => { keys[e.code] = true; });
+document.addEventListener('keyup', e => { keys[e.code] = false; });
+
+let isDragging = false;
+let lastMouseX = 0, lastMouseY = 0;
+
+// mousemove: works both with pointer lock AND manual drag fallback
+document.addEventListener('mousemove', e => {
+  if (!gameActive) return;
+  if (isPointerLocked) {
+    yaw   -= e.movementX * 0.002;
+    pitch -= e.movementY * 0.002;
+    pitch  = Math.max(-Math.PI/3, Math.min(Math.PI/3, pitch));
+  } else if (isDragging) {
+    yaw   -= (e.clientX - lastMouseX) * 0.003;
+    pitch -= (e.clientY - lastMouseY) * 0.003;
+    pitch  = Math.max(-Math.PI/3, Math.min(Math.PI/3, pitch));
+    lastMouseX = e.clientX;
+    lastMouseY = e.clientY;
+  }
+});
+
+// Click/mousedown on canvas: re-lock pointer AND enable drag fallback
+document.getElementById('c').addEventListener('mousedown', e => {
+  if (!gameActive) return;
+  isDragging = true;
+  lastMouseX = e.clientX;
+  lastMouseY = e.clientY;
+  // Always try to (re)lock — this is inside a genuine user gesture
+  if (!isPointerLocked) {
+    document.getElementById('c').requestPointerLock();
+  }
+});
+
+document.addEventListener('mouseup', () => { isDragging = false; });
+
+// Track pointer lock state changes
+document.addEventListener('pointerlockchange', () => {
+  isPointerLocked = (document.pointerLockElement === document.getElementById('c'));
+});
+
+// If pointer lock is lost (e.g. user presses Escape), show a hint
+document.addEventListener('pointerlockchange', () => {
+  if (!document.pointerLockElement && gameActive) {
+    showMessage('Click the screen to re-lock mouse', 3000);
+  }
+});
+
+document.addEventListener('keydown', e => {
+  if (e.code === 'KeyE' && gameActive && canInteract && nearbyGenerator) {
+    activateGenerator(nearbyGenerator);
+  }
+});
+
+function activateGenerator(gen) {
+  if (gen.userData.activated) return;
+  gen.userData.activated = true;
+  generatorsActivated++;
+
+  // Update indicator
+  gen.userData.indicatorMat.color.setHex(0x00ff88);
+  gen.userData.pointLight.color.setHex(0x00ff88);
+  gen.userData.pointLight.intensity = 3;
+  gen.userData.marker.visible = false;
+
+  // Update HUD
+  const icon = document.getElementById('g' + gen.userData.id);
+  icon.classList.remove('active');
+  icon.classList.add('done');
+
+  playGeneratorSound();
+  showMessage('⚡ GENERATOR ' + (gen.userData.id + 1) + ' ONLINE', 3000);
+
+  // Add a real light to this room
+  const roomLight = new THREE.PointLight(0x2244ff, 2, 12);
+  roomLight.position.copy(gen.position);
+  roomLight.position.y = 3;
+  scene.add(roomLight);
+
+  // Check win
+  if (generatorsActivated >= TOTAL_GENERATORS) {
+    setTimeout(triggerWin, 1500);
+  }
+}
+
+// =====================================================================
+// ENTITY AI
+// =====================================================================
+const _entityVec = new THREE.Vector3();
+
+function updateEntities(delta, playerPos) {
+  entities.forEach(entity => {
+    const ud = entity.userData;
+    ud.animTime += delta;
+
+    const dx = playerPos.x - entity.position.x;
+    const dz = playerPos.z - entity.position.z;
+    const dist = Math.sqrt(dx*dx + dz*dz);
+
+    // Detection
+    if (!ud.detected && dist < ud.detectDist) {
+      // Check if flashlight is pointing at entity somewhat
+      ud.detected = true;
+      if (!ud.screamPlayed) {
+        ud.screamPlayed = true;
+        playScreamSound();
+      }
+    }
+
+    const spd = ud.detected ? ud.chaseSpeed : ud.speed;
+
+    if (ud.detected) {
+      // Chase player
+      if (dist > ud.attackDist) {
+        const nx = dx / dist;
+        const nz = dz / dist;
+        entity.position.x += nx * spd;
+        entity.position.z += nz * spd;
+        entity.rotation.y = Math.atan2(nx, nz);
+      }
+
+      // Attack!
+      if (dist < ud.attackDist && !gameOverTriggered) {
+        triggerDeath(ud.type);
+      }
+    } else {
+      // Patrol
+      ud.patrolAngle += delta * 0.5;
+      const tx = ud.originX + Math.cos(ud.patrolAngle) * ud.patrolRadius;
+      const tz = ud.originZ + Math.sin(ud.patrolAngle) * ud.patrolRadius;
+      const pdx = tx - entity.position.x;
+      const pdz = tz - entity.position.z;
+      const pd = Math.sqrt(pdx*pdx + pdz*pdz);
+      if (pd > 0.1) {
+        entity.position.x += (pdx/pd) * spd;
+        entity.position.z += (pdz/pd) * spd;
+        entity.rotation.y = Math.atan2(pdx/pd, pdz/pd);
+      }
+    }
+
+    // Animations per type
+    if (ud.type === 'stalker') {
+      entity.position.y = Math.sin(ud.animTime * 3) * 0.05;
+      // Tilt head
+      const head = entity.children[1];
+      if (head) head.rotation.z = Math.sin(ud.animTime * 2) * 0.1;
+    } else if (ud.type === 'crawler') {
+      entity.position.y = Math.abs(Math.sin(ud.animTime * 6)) * 0.15 - 0.05;
+    } else if (ud.type === 'watcher') {
+      entity.position.y = Math.sin(ud.animTime * 1.5 + ud.floatTime) * 0.3;
+      if (ud.glowRef) {
+        ud.glowRef.intensity = 1.5 + Math.sin(ud.animTime * 3) * 0.8;
+      }
+      entity.rotation.y += delta * 0.5;
+    }
+
+    // Sanity drain when near
+    if (dist < 6) {
+      sanity -= delta * (8 / dist);
+      sanity = Math.max(0, sanity);
+    }
+  });
+}
+
+// =====================================================================
+// PLAYER UPDATE
+// =====================================================================
+function updatePlayer(delta) {
+  const sprint = keys['ShiftLeft'] && player.stamina > 0;
+  const speed = sprint ? player.sprintSpeed : player.speed;
+
+  // Stamina
+  if (sprint) {
+    player.stamina = Math.max(0, player.stamina - delta * 40);
+  } else {
+    player.stamina = Math.min(100, player.stamina + delta * 15);
+  }
+  document.getElementById('stamina-fill').style.width = player.stamina + '%';
+
+  // Movement
+  const forward = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+  const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+
+  const move = new THREE.Vector3();
+  if (keys['KeyW'] || keys['ArrowUp']) move.addScaledVector(forward, speed);
+  if (keys['KeyS'] || keys['ArrowDown']) move.addScaledVector(forward, -speed * 0.6);
+  if (keys['KeyA'] || keys['ArrowLeft']) move.addScaledVector(right, -speed * 0.7);
+  if (keys['KeyD'] || keys['ArrowRight']) move.addScaledVector(right, speed * 0.7);
+
+  // Apply movement with simple boundary check
+  const newX = camera.position.x + move.x;
+  const newZ = camera.position.z + move.z;
+
+  // Simple bounds — keep in facility area
+  if (Math.abs(newX) < 28 && newZ > -25 && newZ < 36) {
+    camera.position.x = newX;
+    camera.position.z = newZ;
+  }
+
+  camera.position.y = 1.7 + Math.sin(Date.now() * 0.007) * (keys['KeyW'] || keys['KeyS'] ? 0.04 : 0.01);
+
+  // Camera rotation
+  const euler = new THREE.Euler(pitch, yaw, 0, 'YXZ');
+  camera.quaternion.setFromEuler(euler);
+
+  // Flashlight follows camera
+  const fwdDir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+  flashlight.position.copy(camera.position);
+  flashlight.target.position.copy(camera.position).addScaledVector(fwdDir, 10);
+  flashlight.target.updateMatrixWorld();
+
+  // Generator proximity check
+  canInteract = false;
+  nearbyGenerator = null;
+  generators.forEach(gen => {
+    if (gen.userData.activated) return;
+    const dx = camera.position.x - gen.position.x;
+    const dz = camera.position.z - gen.position.z;
+    const d = Math.sqrt(dx*dx + dz*dz);
+    if (d < gen.userData.interactRadius) {
+      canInteract = true;
+      nearbyGenerator = gen;
+      const icon = document.getElementById('g' + gen.userData.id);
+      if (!icon.classList.contains('done')) icon.classList.add('active');
+      showMessage('[E] Activate Generator ' + (gen.userData.id + 1), 0);
+    }
+  });
+
+  if (!canInteract) {
+    generators.forEach(gen => {
+      if (!gen.userData.activated) {
+        const icon = document.getElementById('g' + gen.userData.id);
+        icon.classList.remove('active');
+      }
+    });
+  }
+}
+
+// =====================================================================
+// SANITY & HORROR EFFECTS
+// =====================================================================
+function updateHorrorEffects(delta) {
+  // Heartbeat speed based on sanity
+  const hbSpeed = 1 - (sanity / 100) * 0.5;
+
+  // Blood vignette
+  const bloodEl = document.getElementById('blood-overlay');
+  bloodEl.style.opacity = ((100 - sanity) / 100) * 0.7;
+
+  // Noise overlay
+  const noiseEl = document.getElementById('noise-overlay');
+  noiseEl.style.opacity = ((100 - sanity) / 100) * 0.15;
+
+  // Camera shake at low sanity
+  if (sanity < 30) {
+    camera.position.x += (Math.random() - 0.5) * 0.01 * (1 - sanity/30);
+    camera.position.y += (Math.random() - 0.5) * 0.008 * (1 - sanity/30);
+  }
+
+  // Flicker lights
+  flickerTimers.forEach(ft => {
+    ft.time += delta * ft.rate;
+    ft.light.intensity = Math.max(0, 0.3 + Math.sin(ft.time * 7) * 0.2 + Math.sin(ft.time * 13) * 0.1);
+    if (Math.random() < 0.002) ft.light.intensity = 0; // random flicker off
+  });
+
+  // Sanity slowly recovers in light
+  // (near activated generators)
+  generators.forEach(gen => {
+    if (!gen.userData.activated) return;
+    const dx = camera.position.x - gen.position.x;
+    const dz = camera.position.z - gen.position.z;
+    const d = Math.sqrt(dx*dx + dz*dz);
+    if (d < 8) sanity = Math.min(100, sanity + delta * 3);
+  });
+}
+
+// =====================================================================
+// MESSAGES
+// =====================================================================
+function showMessage(text, duration) {
+  const el = document.getElementById('message');
+  el.textContent = text;
+  el.style.opacity = '1';
+  if (messageTimeout) clearTimeout(messageTimeout);
+  if (duration > 0) {
+    messageTimeout = setTimeout(() => el.style.opacity = '0', duration);
+  }
+}
+
+// =====================================================================
+// DEATH & WIN
+// =====================================================================
+function triggerDeath(entityType) {
+  if (gameOverTriggered) return;
+  gameOverTriggered = true;
+  gameActive = false;
+  document.exitPointerLock();
+
+  playScreamSound();
+
+  // Massive red flash
+  const bloodEl = document.getElementById('blood-overlay');
+  bloodEl.style.transition = 'opacity 0.05s';
+  bloodEl.style.opacity = '1';
+
+  // Shake camera violently
+  let shakeCount = 0;
+  const shakeInterval = setInterval(() => {
+    camera.position.x += (Math.random()-0.5) * 0.3;
+    camera.position.y += (Math.random()-0.5) * 0.3;
+    shakeCount++;
+    if (shakeCount > 20) clearInterval(shakeInterval);
+  }, 50);
+
+  setTimeout(() => {
+    const goScreen = document.getElementById('gameover-screen');
+    goScreen.style.display = 'flex';
+    const msg = {
+      'stalker': 'It reached out from the darkness.',
+      'crawler': 'It came from below, where you couldn\'t see.',
+      'watcher': 'It was watching. All along. It was watching.'
+    };
+    goScreen.querySelector('p').textContent = msg[entityType] || 'Something got you.';
+  }, 800);
+}
+
+function triggerWin() {
+  if (winTriggered) return;
+  winTriggered = true;
+  gameActive = false;
+  document.exitPointerLock();
+
+  // Flood the lights
+  ambientLight.intensity = 10;
+  ambientLight.color.setHex(0xfff5e0);
+
+  setTimeout(() => {
+    document.getElementById('win-screen').style.display = 'flex';
+  }, 1000);
+}
+
+// =====================================================================
+// GAME LOOP
+// =====================================================================
+function gameLoop() {
+  requestAnimationFrame(gameLoop);
+  if (!gameActive) {
+    renderer.render(scene, camera);
+    return;
+  }
+
+  const delta = clock.getDelta();
+  frameCount++;
+
+  updatePlayer(delta);
+  updateEntities(delta, camera.position);
+  updateHorrorEffects(delta);
+
+  // Random ambient sounds
+  if (frameCount % 300 === 0 && audioCtx) {
+    playAmbientDrone();
+  }
+
+  renderer.render(scene, camera);
+}
+
+// =====================================================================
+// MAIN ENTRY
+// =====================================================================
+function startGame() {
+  createAudio();
+  document.getElementById('title-screen').style.display = 'none';
+  initScene();
+  gameActive = true;
+  gameLoop();
+
+  // Show intro message
+  setTimeout(() => showMessage('The lights are out. Find the generators.', 4000), 500);
+  setTimeout(() => showMessage("You're not alone in here.", 3000), 5500);
+
+  // Heartbeat
+  let hbTime = 1200;
+  function doHeartbeat() {
+    if (!gameActive) return;
+    const sanityRatio = sanity / 100;
+    hbTime = 500 + sanityRatio * 800;
+    playHeartbeat();
+    heartbeatInterval = setTimeout(doHeartbeat, hbTime);
+  }
+  setTimeout(doHeartbeat, 2000);
+
+  playAmbientDrone();
+
+  // Request pointer lock directly inside user gesture
+  document.getElementById('c').requestPointerLock();
+}
+</script>
+</body>
+</html>
